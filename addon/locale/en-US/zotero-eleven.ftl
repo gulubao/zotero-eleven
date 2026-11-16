@@ -1,0 +1,14 @@
+zotero-eleven-read-from-here = Read from here in ElevenReader
+zotero-eleven-open-pdf = Open PDF in ElevenReader
+zotero-eleven-progress-headline = ElevenReader
+zotero-eleven-progress-waiting = Waiting for the previous ElevenReader request to finish…
+zotero-eleven-progress-working-open = Opening the PDF in ElevenReader in Chrome. The first time, the PDF is imported, and ElevenReader extracts its words, which can take a few minutes…
+zotero-eleven-progress-done-open = The PDF is open in ElevenReader in Chrome.
+zotero-eleven-progress-working-read = Opening the PDF in ElevenReader and looking for the selected sentence. The first time, the PDF is imported, which can take a few minutes…
+zotero-eleven-progress-done-read = ElevenReader is reading aloud from the selected sentence.
+zotero-eleven-progress-failed-open = Opening the PDF in ElevenReader failed.
+zotero-eleven-progress-failed-read = Reading aloud from the selected sentence failed.
+zotero-eleven-error-pdf-missing = The PDF file of this item is not on this computer. Download or sync it in Zotero first.
+zotero-eleven-error-selection-not-found = ElevenReader’s “Find in text” did not find the beginning of the selection in this PDF. Select text that starts at a word of the main text (not a heading, formula or footnote) and try again. The shortest beginning searched for was:
+zotero-eleven-error-selection-ambiguous = The beginning of the selection occurs more than once in ElevenReader’s text of this PDF, so the selected place cannot be told apart. Select a longer passage, starting at a word of the main text, and try again. The beginning that matched several times was:
+zotero-eleven-error-remote-debugging = Zotero could not control Chrome. In Chrome, open chrome://inspect/#remote-debugging and turn on “Allow remote debugging for this browser instance”, then click Allow when Chrome asks whether to allow the connection, and try again. If that page shows a port other than 9222, enter it as extensions.zotero-eleven.remoteDebuggingPort in Zotero's Config Editor.

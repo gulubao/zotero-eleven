@@ -1,0 +1,9 @@
+[project]
+name = "zotero-eleven"
+version = "0.1.0"
+description = "Build tooling for the Zotero → ElevenReader plugin"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+package = false

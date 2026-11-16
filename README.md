@@ -9,9 +9,9 @@ your own, already signed-in Google Chrome and the ElevenReader web app. Each PDF
 - **Open PDF in ElevenReader**: in the library's item list, right-click a paper. The plugin imports the paper's PDF
   into ElevenReader the first time, and opens it in ElevenReader's reader every time.
 - **Read from here in ElevenReader**: in Zotero's PDF reader, select a sentence and click this button in the
-  selection popup (or choose it from the right-click menu). The plugin opens the paper in ElevenReader (importing it
-  first if it was never imported), finds the sentence with ElevenReader's own **Find in text**, and clicks its first
-  word, so ElevenReader reads aloud from there until you stop it.
+  selection popup (or choose it from the right-click menu). The paper must already be open in ElevenReader in Chrome
+  (with **Open PDF in ElevenReader**). The plugin finds the sentence there with ElevenReader's own **Find in text**,
+  and clicks its first word, so ElevenReader reads aloud from there until you stop it.
 - Uses your normal Chrome window and your normal ElevenReader account. No separate browser profile is needed, and no
   extra Chrome extension is installed.
 - Developed with Zotero 11.0-beta.4 (Linux, Ubuntu 24.04) and Google Chrome 157; written for Zotero 8 – 11 on Linux,
@@ -37,7 +37,8 @@ Zotero ──(PDF file, selected sentence)──▶ plugin ──Chrome DevTools
    dialog, clicks **Upload**, waits until ElevenReader has extracted the PDF's words, and opens the new entry. The
    entry's address (`/reader/library/<read ID>`) is recorded in `zotero-eleven-reads.json` in the Zotero data directory,
    keyed by the Zotero attachment. If that ElevenReader entry is deleted later, the next request imports the PDF again.
-4. **Reading from a sentence.** On the PDF's read page the plugin opens **⋯ (Read options) → Find in text**, searches
+4. **Reading from a sentence.** On the read page already open in Chrome (this PDF's recorded read if it is open,
+   otherwise the first open read page) the plugin opens **⋯ (Read options) → Find in text**, searches
    for the beginning of the selected text (its first 12 words, then 6, then 3 if the longer beginning is not found),
    and, when that beginning occurs exactly once, clicks the first word of the match. These are real browser input events, so Chrome treats the click as a user
    action and allows the audio to start.
@@ -122,7 +123,7 @@ addon/                      the plugin (packaged as-is into the .xpi)
     read-registry.js        ReadRegistry: which ElevenReader read belongs to which Zotero PDF attachment
     reader-integration.js   ReaderIntegration: "Read from here" in the PDF reader's selection popup and context menu
     library-integration.js  LibraryIntegration: "Open PDF in ElevenReader" in the library item context menu
-    elevenreader-web.js     ElevenReaderWeb (show/import), ElevenReaderRead (Find in text, read from a word),
+    elevenreader-web.js     ElevenReaderWeb (open/import, opened read), ElevenReaderRead (Find in text, read from a word),
                             ElevenReaderTab (polling), elevenReaderPage (the function that runs in the page)
     chrome-browser.js       ChromeBrowser + ChromePage: finding, starting and attaching to the running Chrome
     cdp-connection.js       CDPConnection: Chrome DevTools Protocol client on Gecko's WebSocket channel

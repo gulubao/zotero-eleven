@@ -5,7 +5,7 @@
 这是一个 Zotero 插件, 用 **ElevenReader** (ElevenLabs 公司的文本转语音阅读应用) 朗读论文。插件调用你自己已登录的 Google Chrome 与 ElevenReader 网页版。每个 PDF 只导入 ElevenReader **一次**; 之后插件只在 ElevenReader 中打开它, 并跳到你选中的句子。
 
 - **在 ElevenReader 中打开 PDF**: 在文库条目列表中右击一篇论文。首次使用时插件把该论文的 PDF 导入 ElevenReader, 之后每次都在 ElevenReader 的阅读页中打开它。
-- **在 ElevenReader 中从此处朗读**: 在 Zotero 的 PDF 阅读器中选中一个句子, 点击选择浮窗中的该按钮 (或在右键菜单中选择)。插件在 ElevenReader 中打开这篇论文 (从未导入过则先导入), 用 ElevenReader 自带的 **Find in text** (文中查找) 找到该句子, 并点击它的第一个单词, 于是 ElevenReader 从这里开始朗读, 直到你停止。
+- **在 ElevenReader 中从此处朗读**: 在 Zotero 的 PDF 阅读器中选中一个句子, 点击选择浮窗中的该按钮 (或在右键菜单中选择)。这篇论文必须已经在 Chrome 的 ElevenReader 中打开 (用 **在 ElevenReader 中打开 PDF**)。插件在已打开的阅读页中用 ElevenReader 自带的 **Find in text** (文中查找) 找到该句子, 并点击它的第一个单词, 于是 ElevenReader 从这里开始朗读, 直到你停止。
 - 使用你平时的 Chrome 窗口和你平时的 ElevenReader 账号; 不需要另建浏览器配置目录, 也不需要安装额外的 Chrome 扩展。
 - 在 Zotero 11.0-beta.4 (Linux, Ubuntu 24.04) 与 Google Chrome 157 上开发; 面向 Linux、macOS、Windows 上的 Zotero 8 – 11 编写。
 
@@ -21,7 +21,7 @@ Zotero ──(PDF 文件, 选中的句子)──▶ 插件 ──经本机 WebSo
 1. Google Chrome 从 144 版起, 可以为正在运行的浏览器开启**远程调试服务** (remote-debugging server): 在 `chrome://inspect/#remote-debugging` 打开开关即可。之后 Chrome 只在 `127.0.0.1` 上监听, 通常是 9222 端口 (该页面会显示端口)。
 2. 插件用 **Chrome 开发者工具协议** (Chrome DevTools Protocol, CDP; 即 Chrome 自带开发者工具所用的协议) 连接该端口。Chrome 会请你点击 **Allow** (允许); 在 macOS 上, 插件会先用 `open -a` 打开 ElevenReader 页面, 让 Chrome 有一个显示该对话框的窗口并切到前台。插件在 Zotero 运行期间保持这一条连接, 所以只有在 Zotero 或 Chrome 重启后 Chrome 才会再次询问。
 3. **导入 (每个 PDF 一次)。** 插件在 ElevenReader 书库页点击 **Import**, 在对话框中选择该 PDF 文件, 点击 **Upload**, 等待 ElevenReader 提取完 PDF 的文字, 然后打开新条目。该条目的地址 (`/reader/library/<阅读条目 ID>`) 按 Zotero 附件记录在 Zotero 数据目录下的 `zotero-eleven-reads.json` 中。如果之后在 ElevenReader 中删除了该条目, 下一次请求会重新导入。
-4. **从某个句子开始朗读。** 插件在该 PDF 的阅读页打开 **⋯ (Read options, 阅读选项) → Find in text**, 查找选中文本的开头 (先查前 12 个词; 找不到再查前 6 个、前 3 个), 在该开头恰好出现一次时点击匹配处的第一个单词。这些都是真实的浏览器输入事件, 因此 Chrome 把这次点击视为用户操作, 允许音频开始播放。
+4. **从某个句子开始朗读。** 插件在 Chrome 中已打开的阅读页 (若该 PDF 记录的阅读页已打开则用它, 否则用第一个已打开的阅读页) 打开 **⋯ (Read options, 阅读选项) → Find in text**, 查找选中文本的开头 (先查前 12 个词; 找不到再查前 6 个、前 3 个), 在该开头恰好出现一次时点击匹配处的第一个单词。这些都是真实的浏览器输入事件, 因此 Chrome 把这次点击视为用户操作, 允许音频开始播放。
 
 如果 Chrome 没有运行, 插件会启动 Chrome 并打开 ElevenReader 书库页面, 最多等待 30 秒直到远程调试服务可用。
 
@@ -86,7 +86,7 @@ addon/                      插件本体 (原样打包进 .xpi)
     read-registry.js        ReadRegistry: 记录 Zotero PDF 附件与 ElevenReader 阅读条目的对应关系
     reader-integration.js   ReaderIntegration: PDF 阅读器选择浮窗与右键菜单中的“从此处朗读”
     library-integration.js  LibraryIntegration: 文库条目右键菜单中的“在 ElevenReader 中打开 PDF”
-    elevenreader-web.js     ElevenReaderWeb (打开/导入)、ElevenReaderRead (文中查找并从某词开始朗读)、
+    elevenreader-web.js     ElevenReaderWeb (打开/导入、已打开的阅读页)、ElevenReaderRead (文中查找并从某词开始朗读)、
                             ElevenReaderTab (轮询)、elevenReaderPage (在网页中运行的函数)
     chrome-browser.js       ChromeBrowser + ChromePage: 查找、启动并连接正在运行的 Chrome
     cdp-connection.js       CDPConnection: 基于 Gecko WebSocket 通道的 Chrome 开发者工具协议客户端

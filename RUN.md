@@ -29,8 +29,9 @@ close it; closing the progress notice does not hide the result.
    the start of a sentence in the main text.
 2. Click **Read from here in ElevenReader** in the selection popup, or right-click inside the selection and choose the
    same item.
-3. The plugin opens the paper's ElevenReader read page (importing the PDF first if it was never imported, as in
-   Workflow 1), brings Chrome to the front, opens **⋯ (Read options) → Find in text**, and searches for the first 12
+3. The plugin does not import or open anything: it uses the ElevenReader read page that is already open in Chrome
+   (open it first with Workflow 1). If several read pages are open, it uses the one recorded for this PDF, otherwise
+   the first one; if none is open, it stops and asks you to open the PDF first. It brings that tab to the front, opens **⋯ (Read options) → Find in text**, and searches for the first 12
    words of the selection. If ElevenReader finds no match, it tries the first 6 words, then the first 3. If a
    beginning matches more than once, the plugin stops and asks you to select a longer passage, because the page
    cannot tell which occurrence you selected.
@@ -41,7 +42,7 @@ close it; closing the progress notice does not hide the result.
 Requests from both workflows run one after another, never at the same time. A request that waits for an earlier one
 shows "Waiting for the previous ElevenReader request to finish…" until its turn comes.
 
-The PDF file must be on this computer. If Zotero has not downloaded it yet (for example, it is only in Zotero
+For Workflow 1 the PDF file must be on this computer. If Zotero has not downloaded it yet (for example, it is only in Zotero
 storage online), open it in Zotero once or sync it first.
 
 ## Where imported PDFs are recorded
@@ -57,9 +58,9 @@ every import, delete this file while Zotero is closed.
 | Step | What the plugin does in Chrome |
 |---|---|
 | 1 | Connects to `ws://127.0.0.1:<port>/devtools/browser` with the Chrome DevTools Protocol and waits for your **Allow** (on macOS it first opens the ElevenReader page with `open -a`, because Chrome shows the dialog in a browser window and on macOS may be running without one) |
-| 2 | Uses the first `https://elevenreader.io` tab (or opens a new one), brings it to the front, and loads the recorded read page there, or the library page when the PDF must be imported |
+| 2 | Opening: uses the first `https://elevenreader.io` tab (or opens a new one), brings it to the front, and loads the recorded read page there, or the library page when the PDF must be imported. Reading: uses the tab already showing a read page (`/reader/library/<read ID>`), preferring this PDF's recorded read, brings it to the front and does not load it again |
 | 3 | Import only: clicks **Import** (again every 3 s until the dialog opens, because a freshly loaded page ignores early clicks), chooses the PDF file in the dialog's file input, records the library entries that exist now, and clicks **Upload** |
-| 4 | Import only: waits until a new entry showing the PDF file name appears and its **Play** button is enabled (up to 10 minutes), brings Chrome to the front again, and clicks the entry's title, which opens its read page |
+| 4 | Import only: waits until a new entry appears at the top of the library list and its **Play** button is enabled (up to 10 minutes), brings Chrome to the front again, and clicks the entry's title, which opens its read page. The entry is recognized by its position, not by its title, because ElevenReader first shows the file name and later replaces it with the title it recognizes in the PDF |
 | 5 | Reading only: brings Chrome to the front, closes an open Find in text box, opens **⋯ (Read options) → Find in text**, types the beginning of the selection, and waits for "1 of N" or "No results" |
 | 6 | Reading only: with exactly one match, waits until the match's first word stops moving (ElevenReader scrolls it to 20 % below the top) and clicks it |
 
@@ -108,6 +109,7 @@ This project is a plugin, not an experiment pipeline, so there are no comparison
 | "The Chrome tab was closed while Zotero was using it." | The ElevenReader tab was closed during a request. Start the request again. |
 | "The ElevenReader page did not show "importButton" …" | ElevenReader is not signed in in that Chrome, or the page did not finish loading. Sign in at <https://elevenreader.io> and try again. |
 | "The ElevenReader page did not show "newEntryTitle" …" | The upload did not produce a finished library entry within 10 minutes: the PDF may be too large for ElevenReader, extraction failed, or your plan's limit is reached. Look at the ElevenReader tab for its message. |
+| ""Read from here" works in the PDF already open in ElevenReader…" | No Chrome tab shows an ElevenReader read page (`elevenreader.io/reader/library/<read ID>`). Open the paper first with **Open PDF in ElevenReader**, wait for its read page, then select the sentence again. |
 | "ElevenReader's "Find in text" did not find the beginning of the selection…" | Even the first 3 selected words do not occur in ElevenReader's text of this PDF, usually because the selection starts in a heading, formula, footnote or figure, or with a word split across lines. Select text that starts at a word of the main text. |
 | "The beginning of the selection occurs more than once…" | The selected words also occur elsewhere in the paper, or only a short beginning matched. Select a longer passage that starts at a word of the main text. |
 | "The ElevenReader page did not show "readOptionsButton" / "findMenuItem" / "findInput" …" | The read page did not show the **⋯ (Read options)** menu or its **Find in text** item. ElevenReader may have changed its page; check whether the menu still exists. |

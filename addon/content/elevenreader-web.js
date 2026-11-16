@@ -1,16 +1,19 @@
 /* Drives the ElevenReader web app (https://elevenreader.io) the way a person would, with real CDP mouse events:
- *  - a PDF is imported once (Library → Import → choose the file → Upload → open the new entry), and its read page
- *    ("/reader/library/<read ID>") is opened directly afterwards;
- *  - on the read page, "Read options → Find in text" locates a sentence, and clicking its first word makes
- *    ElevenReader read aloud from there. Chrome counts that click as a user gesture, so the audio may start.
+ *  - "Open PDF": a PDF is imported once (Library → Import → choose the file → Upload → open the new entry), and its
+ *    read page ("/reader/library/<read ID>") is opened directly afterwards;
+ *  - "Read from here": the user has already opened the PDF's read page; there, "Read options → Find in text" locates
+ *    a sentence, and clicking its first word makes ElevenReader read aloud from there. Chrome counts that click as a
+ *    user gesture, so the audio may start.
  * Zotero polls the page instead of the page polling itself: Chrome throttles timers in a hidden page (for example
  * while the user works in Zotero during a long PDF import) down to about once a minute. */
+class ReadNotOpenError extends Error {}
 class SelectionNotFoundError extends Error {}
 class SelectionAmbiguousError extends Error {}
 
 class ElevenReaderWeb {
   static ORIGIN = "https://elevenreader.io";
   static LIBRARY_URL = "https://elevenreader.io/reader/library";
+  static READ_PATH = /^\/reader\/library\/[^/]+$/;
   static READ_LOAD_TIMEOUT_MS = 30000;
   static DIALOG_WAIT_MS = 3000;
   // ElevenReader extracts the words of an uploaded file before the entry can be opened; long PDFs take minutes.
@@ -20,14 +23,27 @@ class ElevenReaderWeb {
     this._browser = browser;
   }
 
-  /** Shows the read of the local file at `path` and returns it: the recorded read at `readPath` while it still opens,
+  /** Opens the read of the local file at `path` and returns it: the recorded read at `readPath` while it still opens,
    *  otherwise (never imported, or deleted in ElevenReader) a new import of the file. */
-  async show(path, readPath) {
+  async open(path, readPath) {
     if (readPath) {
       const tab = new ElevenReaderTab(await this._browser.openPage(ElevenReaderWeb.ORIGIN + readPath));
       if (await tab.waitFor("readPath", {}, ElevenReaderWeb.READ_LOAD_TIMEOUT_MS)) return new ElevenReaderRead(tab, readPath);
     }
     return this._import(path);
+  }
+
+  /** Returns the read already open in a Chrome tab, as it is: the tab showing `readPath` (the attachment's recorded
+   *  read, if any) when there is one, otherwise the first tab showing any ElevenReader read. Nothing is imported or
+   *  loaded again. */
+  async openedRead(readPath) {
+    const page = await this._browser.findPage(ElevenReaderWeb.LIBRARY_URL, (urls) => {
+      const reads = urls.filter(url => url.startsWith(`${ElevenReaderWeb.ORIGIN}/`) && ElevenReaderWeb.READ_PATH.test(new URL(url).pathname));
+      return reads.find(url => new URL(url).pathname === readPath) ?? reads[0];
+    });
+    if (!page) throw new ReadNotOpenError("No Chrome tab shows an ElevenReader read page (elevenreader.io/reader/library/…).");
+    const tab = new ElevenReaderTab(page);
+    return new ElevenReaderRead(tab, await tab.find("readPath", {}, ElevenReaderWeb.READ_LOAD_TIMEOUT_MS));
   }
 
   async _import(path) {
@@ -36,10 +52,10 @@ class ElevenReaderWeb {
     await this._openImportDialog(tab);
     await tab.page.setFileInputFiles('[role="dialog"] input[type="file"]', [path]);
     const upload = await tab.find("uploadButton");
-    // By now the library behind the dialog has rendered; the new entry is the one this snapshot does not account for.
-    const entriesBefore = await tab.ask("entryFingerprints");
+    // By now the library behind the dialog has rendered; the new entry is the newest one, which this snapshot does
+    // not account for.
+    const newEntry = { entriesBefore: await tab.ask("entryFingerprints") };
     await tab.page.click(upload);
-    const newEntry = { entryText: PathUtils.filename(path), entriesBefore };
     await tab.find("newEntryTitle", newEntry, ElevenReaderWeb.FILE_PROCESSING_TIMEOUT_MS);
     // The user may have gone back to Zotero during the processing, and Chrome renders nothing in a window that is
     // completely covered, so Chrome comes to the front before the title is measured again and clicked.
@@ -165,11 +181,9 @@ class ElevenReaderTab {
  *  Element commands look for their element once: when it is present and ready (each finder defines what ready
  *  means), it is scrolled into view and the viewport point at its centre is returned; otherwise null. Value commands
  *  return their value, or null while it is not available yet. */
-function elevenReaderPage(command, { entryText, entriesBefore } = {}) {
-  // Compatibility decomposition (NFKD) makes composed and decomposed accents compare equal (macOS file names are
-  // often decomposed) and splits ligatures; then only letters and digits are kept, because the library entry
-  // re-flows whitespace and punctuation.
-  const fingerprint = value => value.normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+function elevenReaderPage(command, { entriesBefore } = {}) {
+  // Only letters and digits are kept, because the library list re-flows the whitespace and punctuation of an entry.
+  const fingerprint = value => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   const visibleButtons = (root, label) => [...root.querySelectorAll("button")]
     .filter(button => button.checkVisibility() && button.innerText.trim() === label);
   // A library entry is the largest ancestor of a Play button that contains no other Play button. The climb stops
@@ -208,22 +222,18 @@ function elevenReaderPage(command, { entryText, entriesBefore } = {}) {
     importButton: () => visibleButtons(document, "Import")[0],
     importDialog: () => document.querySelector('[role="dialog"] input[type="file"]'),
     uploadButton: () => document.querySelector('[role="dialog"] button[type="submit"]:not(:disabled)'),
-    // Walking newest first, the new entry is the first one shown more often than in the snapshot taken before the
-    // upload. Matching fingerprints rather than DOM nodes survives the library list re-rendering its entries. Its
-    // Play button stays disabled while ElevenReader processes the upload; its title opens the read page.
+    // The upload adds one entry at the top of the newest-first list. It is recognized by position and by being
+    // shown more often than in the snapshot taken before the upload, not by its title: ElevenReader first shows the
+    // file name and later replaces it with the title it recognizes in the PDF. Comparing fingerprints rather than DOM
+    // nodes survives the library list re-rendering its entries. The Play button stays disabled while ElevenReader
+    // processes the upload; the title opens the read page.
     newEntryTitle: () => {
-      const needle = fingerprint(entryText).slice(0, 40);
-      const remaining = new Map();
-      for (const before of entriesBefore) remaining.set(before, (remaining.get(before) ?? 0) + 1);
-      for (const { entry, play, fingerprint: shown } of entries()) {
-        const count = remaining.get(shown) ?? 0;
-        if (count > 0) {
-          remaining.set(shown, count - 1);
-          continue;
-        }
-        if (shown.includes(needle)) return play.disabled ? null : entry.querySelector("h3");
-      }
-      return null;
+      const shown = entries();
+      if (shown.length === 0) return null;
+      const [{ entry, play, fingerprint: newest }] = shown;
+      const occurrences = list => list.filter(value => value === newest).length;
+      if (occurrences(shown.map(item => item.fingerprint)) <= occurrences(entriesBefore)) return null;
+      return play.disabled ? null : entry.querySelector("h3");
     },
     readOptionsButton: () => [...document.querySelectorAll('button[aria-label="Read options"]')].find(button => button.checkVisibility()),
     findMenuItem: () => [...document.querySelectorAll('[role="menuitem"]')].find(item => item.innerText.trim() === "Find in text"),

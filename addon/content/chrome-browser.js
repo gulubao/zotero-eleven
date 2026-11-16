@@ -35,21 +35,41 @@ class ChromeBrowser {
    *  already showing `url` keeps its state. */
   async openPage(url, { reload = false } = {}) {
     const cdp = await this._connect(url);
-    const { targetInfos } = await cdp.send("Target.getTargets");
+    const pages = await ChromeBrowser._pages(cdp);
     const sitePrefix = `${new URL(url).origin}/`;
-    const pages = targetInfos.filter(target => target.type === "page");
     const existing = pages.find(target => target.url === url) ?? pages.find(target => target.url.startsWith(sitePrefix));
     const targetID = existing ? existing.targetId : (await cdp.send("Target.createTarget", { url: "about:blank" })).targetId;
-    const { sessionId } = await cdp.send("Target.attachToTarget", { targetId: targetID, flatten: true });
-    const page = new ChromePage(cdp, sessionId, () => this._activateApplication());
-    await page.bringToFront();
+    const page = await this._attach(cdp, targetID);
     if (reload || existing?.url !== url) await page.navigate(url);
     return page;
+  }
+
+  /** Attaches to the open tab whose address `choose` picks from the addresses of all open tabs, and brings that tab
+   *  to the front without loading it again, so it keeps its state; null when `choose` picks none (returns undefined).
+   *  `launchURL` is what Chrome opens if it has to be started for the connection. */
+  async findPage(launchURL, choose) {
+    const cdp = await this._connect(launchURL);
+    const pages = await ChromeBrowser._pages(cdp);
+    const url = choose(pages.map(target => target.url));
+    if (url === undefined) return null;
+    return this._attach(cdp, pages.find(target => target.url === url).targetId);
   }
 
   close() {
     this._connection?.close();
     this._connection = null;
+  }
+
+  static async _pages(cdp) {
+    const { targetInfos } = await cdp.send("Target.getTargets");
+    return targetInfos.filter(target => target.type === "page");
+  }
+
+  async _attach(cdp, targetID) {
+    const { sessionId } = await cdp.send("Target.attachToTarget", { targetId: targetID, flatten: true });
+    const page = new ChromePage(cdp, sessionId, () => this._activateApplication());
+    await page.bringToFront();
+    return page;
   }
 
   async _connect(launchURL) {

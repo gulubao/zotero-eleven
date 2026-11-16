@@ -1,7 +1,7 @@
 /* Zotero → ElevenReader. A PDF is imported into the ElevenReader web app once and then reused:
  *  - "Open PDF in ElevenReader" (library item menu) opens the PDF's read, importing it first if needed;
- *  - "Read from here in ElevenReader" (PDF reader selection) opens that read the same way and makes ElevenReader
- *    read aloud from the selected sentence.
+ *  - "Read from here in ElevenReader" (PDF reader selection) assumes that the user has already opened the PDF's read
+ *    in Chrome, and makes ElevenReader read aloud there from the selected sentence.
  * This class wires the parts together, keeps the record of imported PDFs and reports progress in Zotero. */
 class ZoteroEleven {
   static PREF_BRANCH = "extensions.zotero-eleven.";
@@ -37,28 +37,25 @@ class ZoteroEleven {
     this._browser.close();
   }
 
+  /** Opens the attachment's read in ElevenReader and records it, so that a later request does not import it again. */
   openPDF(attachment) {
     return this._enqueue("open", async () => {
-      const read = await this._showRead(attachment);
+      const path = await attachment.getFilePathAsync();
+      if (!path) throw new Error(this._string("zotero-eleven-error-pdf-missing"));
+      const read = await this._elevenReader.open(path, this._reads.get(attachment));
+      await this._reads.set(attachment, read.path);
       await read.close();
     });
   }
 
+  /** Reads aloud in the read already open in Chrome. The read is not recorded for the attachment: when several
+   *  reads are open and none is the attachment's, the one used may belong to another PDF. */
   readFrom(attachment, text) {
     return this._enqueue("read", async () => {
-      const read = await this._showRead(attachment);
+      const read = await this._elevenReader.openedRead(this._reads.get(attachment));
       await read.readFrom(text);
       await read.close();
     });
-  }
-
-  /** Shows the attachment's read in ElevenReader and records it, so that a later request does not import it again. */
-  async _showRead(attachment) {
-    const path = await attachment.getFilePathAsync();
-    if (!path) throw new Error(this._string("zotero-eleven-error-pdf-missing"));
-    const read = await this._elevenReader.show(path, this._reads.get(attachment));
-    await this._reads.set(attachment, read.path);
-    return read;
   }
 
   /** Requests run one after another, so two quick clicks never use the same ElevenReader page at once. Each
@@ -92,6 +89,7 @@ class ZoteroEleven {
     const failed = this._notice(this._string(`zotero-eleven-progress-failed-${kind}`));
     failed.line.setError();
     if (error instanceof RemoteDebuggingUnavailableError) failed.window.addDescription(this._string("zotero-eleven-error-remote-debugging"));
+    if (error instanceof ReadNotOpenError) failed.window.addDescription(this._string("zotero-eleven-error-read-not-open"));
     if (error instanceof SelectionNotFoundError) failed.window.addDescription(this._string("zotero-eleven-error-selection-not-found"));
     if (error instanceof SelectionAmbiguousError) failed.window.addDescription(this._string("zotero-eleven-error-selection-ambiguous"));
     failed.window.addDescription(error.message);

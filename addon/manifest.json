@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero → ElevenReader",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Import a PDF from your Zotero library into the ElevenReader web app in your own Google Chrome once, then have ElevenReader read aloud from any sentence you select in the Zotero PDF reader.",
   "author": "gulubao",
   "homepage_url": "https://github.com/gulubao/zotero-eleven",

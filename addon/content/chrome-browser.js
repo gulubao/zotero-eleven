@@ -128,6 +128,10 @@ class ChromeBrowser {
 
 /** One Chrome tab attached over a flattened CDP session. */
 class ChromePage {
+  // Modifier bit masks of Input.dispatchKeyEvent.
+  static CONTROL_MODIFIER = 2;
+  static META_MODIFIER = 4;
+
   constructor(cdp, sessionID, activateApplication) {
     this._cdp = cdp;
     this._sessionID = sessionID;
@@ -171,6 +175,15 @@ class ChromePage {
     return this._send("Input.insertText", { text });
   }
 
+  /** Empties the focused text field as a user would: Select All (Command+A on macOS, Ctrl+A elsewhere), then
+   *  Backspace. Key events sent over CDP do not run Chrome's own keyboard shortcuts, so each key carries the
+   *  editing command it stands for. */
+  async clearFocusedField() {
+    const selectAllModifier = Zotero.isMac ? ChromePage.META_MODIFIER : ChromePage.CONTROL_MODIFIER;
+    await this._pressKey({ key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: selectAllModifier }, "selectAll");
+    await this._pressKey({ key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8, modifiers: 0 }, "deleteBackward");
+  }
+
   /** Chooses local files in the file input matched by `selector`, as if the user had picked them. Chrome reads
    *  the files itself, so the paths must exist on this computer and Chrome must be allowed to read them. */
   async setFileInputFiles(selector, paths) {
@@ -180,6 +193,12 @@ class ChromePage {
 
   detach() {
     return this._cdp.send("Target.detachFromTarget", { sessionId: this._sessionID });
+  }
+
+  /** One key press; Chrome runs `command` only for a key-down event. */
+  async _pressKey(key, command) {
+    await this._send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key, commands: [command] });
+    await this._send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
   }
 
   _send(method, params = {}) {

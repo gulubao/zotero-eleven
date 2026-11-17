@@ -81,6 +81,7 @@ class ElevenReaderRead {
   // Find in text matches literally (only case is ignored), and text extracted by Zotero and by ElevenReader can
   // differ later in a sentence (hyphenation, footnote marks), so ever shorter beginnings of the selection are tried.
   static QUERY_WORD_COUNTS = [12, 6, 3];
+  static FIND_CLEAR_TIMEOUT_MS = 3000;
   static FIND_RESULT_TIMEOUT_MS = 10000;
 
   constructor(tab, path) {
@@ -115,13 +116,18 @@ class ElevenReaderRead {
     return this._tab.page.detach();
   }
 
-  /** Searches `query` in a fresh Find in text box and returns { total } with its number of matches. */
+  /** Searches `query` in the Find in text box and returns { total } with its number of matches. ElevenReader shows
+   *  the box again with the previous query, its counter and its marked match, so the box is emptied first, and the
+   *  query is typed only once nothing of the previous search is left: otherwise the counter and the marked match of
+   *  the previous query would be read as the result of this one. */
   async _findInText(query) {
     const closeButton = await this._tab.ask("findCloseButton");
     if (closeButton) await this._tab.page.click(closeButton);
     await this._tab.page.click(await this._tab.find("readOptionsButton"));
     await this._tab.page.click(await this._tab.find("findMenuItem"));
     await this._tab.page.click(await this._tab.find("findInput"));
+    await this._tab.page.clearFocusedField();
+    await this._tab.find("findCleared", {}, ElevenReaderRead.FIND_CLEAR_TIMEOUT_MS);
     await this._tab.page.insertText(query);
     return this._tab.find("findResult", {}, ElevenReaderRead.FIND_RESULT_TIMEOUT_MS);
   }
@@ -197,18 +203,22 @@ function elevenReaderPage(command, { entriesBefore } = {}) {
     });
   };
   const searchBox = () => document.querySelector('[role="search"]');
+  // The counter shows "1 of 3" when the query matches and "No results" when it does not.
+  const findCounter = /\d+\s+of\s+(\d+)|No results/;
   const values = {
     // Newest first.
     entryFingerprints: () => entries().map(entry => entry.fingerprint),
     // The read page has loaded once its words (one span per word, "c" = character offset) are shown.
     readPath: () => (/^\/reader\/library\/[^/]+$/.test(location.pathname) && document.querySelector("#preview-content span[c]") ? location.pathname : null),
-    // The counter shows "1 of 3" when the query matches and "No results" when it does not.
     findResult: () => {
-      const counter = searchBox()?.innerText ?? "";
-      const match = /\d+\s+of\s+(\d+)/.exec(counter);
-      if (match) return { total: Number(match[1]) };
-      return counter.includes("No results") ? { total: 0 } : null;
+      const match = findCounter.exec(searchBox()?.innerText ?? "");
+      if (!match) return null;
+      return { total: match[1] ? Number(match[1]) : 0 };
     },
+    // The emptied box shows no counter, and no word is marked as the current match any more.
+    findCleared: () => searchBox()?.querySelector("input")?.value === ""
+      && !findCounter.test(searchBox().innerText)
+      && !document.querySelector("#preview-content span[data-find-current]"),
     // Find in text marks the words of the current match; the first in document order starts the sentence.
     // Measured without scrolling, because ElevenReader scrolls the match into place itself.
     currentMatchFirstWord: () => {
